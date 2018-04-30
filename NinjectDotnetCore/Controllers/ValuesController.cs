@@ -9,6 +9,12 @@ namespace NinjectDotnetCore.Controllers
     [Route("api/[controller]")]
     public class ValuesController : Controller
     {
+        private readonly ITestService testService;
+
+        public ValuesController(ITestService testService)
+        {
+            this.testService = testService;
+        }
         // GET api/values
         [HttpGet]
         public IEnumerable<string> Get()
