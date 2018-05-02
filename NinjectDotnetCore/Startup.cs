@@ -15,15 +15,17 @@ using Ninject;
 using Ninject.Activation;
 using Ninject.Infrastructure.Disposal;
 using NinjectDotnetCore.Extensions;
+using NinjectDotnetCore.Quartz;
+using Quartz;
 
 namespace NinjectDotnetCore
 {
     public class Startup
     {
         private readonly AsyncLocal<Scope> scopeProvider = new AsyncLocal<Scope>();
-        private IKernel Kernel { get; set; }
+        private IKernel _kernel { get; set; }
 
-        private object Resolve(Type type) => Kernel.Get(type);
+        private object Resolve(Type type) => _kernel.Get(type);
         private object RequestScope(IContext context) => scopeProvider.Value;
 
         public Startup(IConfiguration configuration)
@@ -43,12 +45,17 @@ namespace NinjectDotnetCore
             services.AddRequestScopingMiddleware(() => scopeProvider.Value = new Scope());
             services.AddCustomControllerActivation(Resolve);
             services.AddCustomViewComponentActivation(Resolve);
+            //services.AddScoped<HelloJob>();
+
+            _kernel = new StandardKernel();
+            services.AddQuartz(_kernel);
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
         {
-            Kernel = RegisterApplicationComponents(app, loggerFactory);
+            RegisterApplicationComponents(app, loggerFactory);
 
             if (env.IsDevelopment())
             {
@@ -61,21 +68,22 @@ namespace NinjectDotnetCore
         private IKernel RegisterApplicationComponents(IApplicationBuilder app, ILoggerFactory loggerFactory)
         {
             // IKernelConfiguration config = new KernelConfiguration();
-            Kernel = new StandardKernel();
+            _kernel = new StandardKernel();
 
             // Register application services
             foreach (var ctrlType in app.GetControllerTypes())
             {
-                Kernel.Bind(ctrlType).ToSelf().InScope(RequestScope);
+                _kernel.Bind(ctrlType).ToSelf().InScope(RequestScope);
             }
 
-            Kernel.Bind<ITestService>().To<TestService>().InScope(RequestScope);
+            _kernel.Bind<ITestService>().To<TestService>().InScope(RequestScope);
+            //_kernel.Bind<HelloJob>().ToSelf().InTransientScope();
 
             // Cross-wire required framework services
-            Kernel.BindToMethod(app.GetRequestService<IViewBufferScope>);
-            Kernel.Bind<ILoggerFactory>().ToConstant(loggerFactory);
+            _kernel.BindToMethod(app.GetRequestService<IViewBufferScope>);
+            
 
-            return Kernel;
+            return _kernel;
         }
 
         private sealed class Scope : DisposableObject { }
